@@ -287,7 +287,7 @@
     position: relative;
     overflow: hidden;
     aspect-ratio: 16/9;
-    background: var(--dim);
+    background: #080808;
     cursor: none;
   }
   .reel-card:first-child {
@@ -301,19 +301,20 @@
     background: linear-gradient(to top, rgba(5,5,5,0.85) 0%, transparent 60%);
     transform: translateY(20px);
     transition: transform 0.6s cubic-bezier(.25,.46,.45,.94);
+    z-index: 2;
   }
   .reel-card:hover .reel-card-inner { transform: translateY(0); }
   .reel-card-bg {
     position: absolute; inset: 0;
     transition: transform 0.8s cubic-bezier(.25,.46,.45,.94);
+    z-index: 1;
   }
-  .reel-card:hover .reel-card-bg { transform: scale(1.05); }
-  .reel-card-bg canvas { width: 100% !important; height: 100% !important; }
-
-  /* animated placeholder backgrounds */
-  .bg-1 { background: linear-gradient(135deg, #0d1117 0%, #1a0a2e 50%, #0d1117 100%); }
-  .bg-2 { background: linear-gradient(135deg, #0a1a0d 0%, #0d2e12 50%, #0a1a0d 100%); }
-  .bg-3 { background: linear-gradient(135deg, #1a1a0a 0%, #2e2e0a 50%, #1a1a0a 100%); }
+  .reel-card:hover .reel-card-bg { transform: scale(1.03); }
+  .reel-card-bg canvas {
+    width: 100% !important;
+    height: 100% !important;
+    display: block;
+  }
 
   .reel-tag {
     font-family: var(--font-body);
@@ -753,27 +754,40 @@
 <section id="reel">
   <div class="section-label">Selected Work</div>
   <div class="reel-grid">
+
+    <!-- Card 1: Neural Network 3D Graph -->
     <div class="reel-card reveal">
-      <div class="reel-card-bg bg-1" id="card-bg-1"></div>
+      <div class="reel-card-bg" id="card-bg-1">
+        <canvas id="neural-canvas"></canvas>
+      </div>
       <div class="reel-card-inner">
         <div class="reel-tag">AI / Infrastructure</div>
         <div class="reel-name">Neural Deploy — Zero-downtime AI model deployment at scale</div>
       </div>
     </div>
+
+    <!-- Card 2: 3D Rotating Bar Chart -->
     <div class="reel-card reveal reveal-delay-1">
-      <div class="reel-card-bg bg-2" id="card-bg-2"></div>
+      <div class="reel-card-bg" id="card-bg-2">
+        <canvas id="bar-canvas"></canvas>
+      </div>
       <div class="reel-card-inner">
         <div class="reel-tag">Platform</div>
         <div class="reel-name">Pipeline Studio</div>
       </div>
     </div>
+
+    <!-- Card 3: Real-time Line Chart -->
     <div class="reel-card reveal reveal-delay-2">
-      <div class="reel-card-bg bg-3" id="card-bg-3"></div>
+      <div class="reel-card-bg" id="card-bg-3">
+        <canvas id="metrics-canvas"></canvas>
+      </div>
       <div class="reel-card-inner">
         <div class="reel-tag">Analytics</div>
         <div class="reel-name">Void Metrics</div>
       </div>
     </div>
+
   </div>
 </section>
 
@@ -971,12 +985,9 @@ class Particle {
   reset() {
     this.x = Math.random() * W;
     this.y = Math.random() * H;
-    this.ox = this.x; this.oy = this.y;
     this.size = Math.random() * 1.5 + 0.3;
-    this.speed = Math.random() * 0.3 + 0.05;
     this.vx = (Math.random() - 0.5) * 0.3;
     this.vy = (Math.random() - 0.5) * 0.3;
-    this.life = Math.random();
     this.alpha = Math.random() * 0.4 + 0.05;
   }
   update() {
@@ -1077,21 +1088,6 @@ const statsObserver = new IntersectionObserver(([entry]) => {
 }, { threshold: 0.3 });
 statsObserver.observe(statsSection);
 
-// ── ANIMATED CARD BACKGROUNDS ────────────────────────
-function animateCardBg(id, hue1, hue2) {
-  const el = document.getElementById(id);
-  if (!el) return;
-  let t = 0;
-  (function draw() {
-    t += 0.005;
-    el.style.background = `radial-gradient(ellipse at ${50 + Math.sin(t)*30}% ${50 + Math.cos(t*0.7)*20}%, hsl(${hue1},60%,8%) 0%, hsl(${hue2},40%,4%) 100%)`;
-    requestAnimationFrame(draw);
-  })();
-}
-animateCardBg('card-bg-1', 270, 250);
-animateCardBg('card-bg-2', 140, 160);
-animateCardBg('card-bg-3', 60, 40);
-
 // ── MAGNETIC BUTTONS ────────────────────────────────
 document.querySelectorAll('.nav-cta, .btn-primary, .btn-ghost, .plan-btn').forEach(btn => {
   btn.addEventListener('mousemove', e => {
@@ -1102,6 +1098,462 @@ document.querySelectorAll('.nav-cta, .btn-primary, .btn-ghost, .plan-btn').forEa
   });
   btn.addEventListener('mouseleave', () => { btn.style.transform = ''; });
 });
+
+
+// ═══════════════════════════════════════════════════
+// CARD 1 — 3D NEURAL NETWORK GRAPH
+// rotating node graph with layered depth using 3D projection
+// ═══════════════════════════════════════════════════
+(function() {
+  const el = document.getElementById('neural-canvas');
+  const container = document.getElementById('card-bg-1');
+  const c = el.getContext('2d');
+  let W, H, t = 0;
+
+  function resize() {
+    W = el.width = container.offsetWidth;
+    H = el.height = container.offsetHeight;
+  }
+  resize();
+  new ResizeObserver(resize).observe(container);
+
+  // 3D nodes arranged in a layered network
+  const layers = [3, 5, 5, 4, 2];
+  const nodes3D = [];
+  const edges = [];
+
+  layers.forEach((count, li) => {
+    const x3d = (li - (layers.length - 1) / 2) * 1.6;
+    for (let ni = 0; ni < count; ni++) {
+      const y3d = (ni - (count - 1) / 2) * 1.2;
+      const z3d = (Math.random() - 0.5) * 0.4;
+      nodes3D.push({ x: x3d, y: y3d, z: z3d, layer: li, pulse: Math.random() * Math.PI * 2 });
+      // connect to next layer
+      if (li < layers.length - 1) {
+        const nextStart = layers.slice(0, li + 1).reduce((a, b) => a + b, 0);
+        for (let nj = 0; nj < layers[li + 1]; nj++) {
+          if (Math.random() > 0.2) {
+            edges.push({ from: nodes3D.length - 1, to: nextStart + nj, pulse: Math.random() });
+          }
+        }
+      }
+    }
+  });
+
+  function project(x, y, z, rotY, rotX) {
+    // rotate around Y
+    const rx = x * Math.cos(rotY) - z * Math.sin(rotY);
+    const rz = x * Math.sin(rotY) + z * Math.cos(rotY);
+    // rotate around X
+    const ry2 = y * Math.cos(rotX) - rz * Math.sin(rotX);
+    const rz2 = y * Math.sin(rotX) + rz * Math.cos(rotX);
+    const fov = 5;
+    const scale = fov / (fov + rz2);
+    return {
+      sx: W / 2 + rx * scale * (W / 6),
+      sy: H / 2 + ry2 * scale * (H / 5),
+      scale,
+      depth: rz2
+    };
+  }
+
+  function drawNeural() {
+    t += 0.004;
+    c.clearRect(0, 0, W, H);
+
+    // dark bg gradient
+    const bg = c.createRadialGradient(W/2, H/2, 0, W/2, H/2, W * 0.8);
+    bg.addColorStop(0, '#0a0a1a');
+    bg.addColorStop(1, '#020208');
+    c.fillStyle = bg;
+    c.fillRect(0, 0, W, H);
+
+    const rotY = t * 0.4;
+    const rotX = Math.sin(t * 0.2) * 0.15;
+
+    // project all nodes
+    const projected = nodes3D.map(n => project(n.x, n.y, n.z, rotY, rotX));
+
+    // draw edges
+    edges.forEach(e => {
+      const a = projected[e.from], b = projected[e.to];
+      if (!a || !b) return;
+      const pulse = (Math.sin(t * 3 + e.pulse * Math.PI * 2) + 1) / 2;
+      const alpha = 0.06 + pulse * 0.12;
+      const grad = c.createLinearGradient(a.sx, a.sy, b.sx, b.sy);
+      grad.addColorStop(0, `rgba(0,102,255,${alpha})`);
+      grad.addColorStop(0.5, `rgba(0,180,255,${alpha * 1.5})`);
+      grad.addColorStop(1, `rgba(0,102,255,${alpha})`);
+      c.beginPath();
+      c.moveTo(a.sx, a.sy);
+      c.lineTo(b.sx, b.sy);
+      c.strokeStyle = grad;
+      c.lineWidth = 0.5 + pulse * 0.5;
+      c.stroke();
+
+      // traveling pulse dot
+      const tp = (t * 0.8 + e.pulse) % 1;
+      const px = a.sx + (b.sx - a.sx) * tp;
+      const py = a.sy + (b.sy - a.sy) * tp;
+      c.beginPath();
+      c.arc(px, py, 1.5, 0, Math.PI * 2);
+      c.fillStyle = `rgba(100,200,255,${0.6 * pulse})`;
+      c.fill();
+    });
+
+    // sort nodes back to front
+    const sorted = nodes3D.map((n, i) => ({ n, p: projected[i], i }))
+      .sort((a, b) => a.p.depth - b.p.depth);
+
+    sorted.forEach(({ n, p }) => {
+      const pulse = (Math.sin(t * 2 + n.pulse) + 1) / 2;
+      const r = (2 + pulse * 2) * p.scale;
+      const glow = c.createRadialGradient(p.sx, p.sy, 0, p.sx, p.sy, r * 5);
+      const isActive = pulse > 0.7;
+      glow.addColorStop(0, isActive ? 'rgba(0,200,255,0.9)' : 'rgba(0,102,255,0.8)');
+      glow.addColorStop(0.3, isActive ? 'rgba(0,150,255,0.3)' : 'rgba(0,102,255,0.2)');
+      glow.addColorStop(1, 'rgba(0,0,0,0)');
+      c.beginPath();
+      c.arc(p.sx, p.sy, r * 5, 0, Math.PI * 2);
+      c.fillStyle = glow;
+      c.fill();
+      c.beginPath();
+      c.arc(p.sx, p.sy, r, 0, Math.PI * 2);
+      c.fillStyle = isActive ? 'rgba(100,220,255,1)' : 'rgba(0,140,255,0.9)';
+      c.fill();
+    });
+
+    // layer labels
+    const labelNames = ['INPUT', 'HIDDEN', 'HIDDEN', 'HIDDEN', 'OUTPUT'];
+    layers.forEach((count, li) => {
+      const x3d = (li - (layers.length - 1) / 2) * 1.6;
+      const p = project(x3d, -1.8, 0, rotY, rotX);
+      c.font = '9px DM Mono, monospace';
+      c.fillStyle = 'rgba(0,102,255,0.4)';
+      c.textAlign = 'center';
+      c.fillText(labelNames[li], p.sx, p.sy);
+    });
+
+    requestAnimationFrame(drawNeural);
+  }
+  drawNeural();
+})();
+
+
+// ═══════════════════════════════════════════════════
+// CARD 2 — 3D BAR CHART (isometric pipeline throughput)
+// ═══════════════════════════════════════════════════
+(function() {
+  const el = document.getElementById('bar-canvas');
+  const container = document.getElementById('card-bg-2');
+  const c = el.getContext('2d');
+  let W, H, t = 0;
+
+  function resize() {
+    W = el.width = container.offsetWidth;
+    H = el.height = container.offsetHeight;
+  }
+  resize();
+  new ResizeObserver(resize).observe(container);
+
+  const barCount = 12;
+  const barData = Array.from({ length: barCount }, (_, i) => ({
+    base: 0.3 + Math.random() * 0.7,
+    phase: (i / barCount) * Math.PI * 2,
+    freq: 0.5 + Math.random() * 0.5
+  }));
+
+  function isoProject(x, y, z) {
+    // isometric projection
+    const ix = (x - z) * Math.cos(Math.PI / 6);
+    const iy = (x + z) * Math.sin(Math.PI / 6) - y;
+    return { sx: ix, sy: iy };
+  }
+
+  function drawIsometricBar(x, z, height, color1, color2, color3, alpha) {
+    const bw = 0.7, gap = 0.15;
+    const corners = [
+      isoProject(x, 0, z),
+      isoProject(x + bw, 0, z),
+      isoProject(x + bw, 0, z + bw),
+      isoProject(x, 0, z + bw),
+      isoProject(x, height, z),
+      isoProject(x + bw, height, z),
+      isoProject(x + bw, height, z + bw),
+      isoProject(x, height, z + bw),
+    ];
+
+    const scale = Math.min(W, H) * 0.055;
+    const ox = W / 2;
+    const oy = H * 0.72;
+
+    function tp(p) { return { x: ox + p.sx * scale, y: oy + p.sy * scale }; }
+
+    const pts = corners.map(tp);
+
+    // left face
+    c.beginPath();
+    c.moveTo(pts[0].x, pts[0].y);
+    c.lineTo(pts[4].x, pts[4].y);
+    c.lineTo(pts[7].x, pts[7].y);
+    c.lineTo(pts[3].x, pts[3].y);
+    c.closePath();
+    c.fillStyle = color1;
+    c.fill();
+
+    // right face
+    c.beginPath();
+    c.moveTo(pts[1].x, pts[1].y);
+    c.lineTo(pts[5].x, pts[5].y);
+    c.lineTo(pts[6].x, pts[6].y);
+    c.lineTo(pts[2].x, pts[2].y);
+    c.closePath();
+    c.fillStyle = color2;
+    c.fill();
+
+    // top face
+    c.beginPath();
+    c.moveTo(pts[4].x, pts[4].y);
+    c.lineTo(pts[5].x, pts[5].y);
+    c.lineTo(pts[6].x, pts[6].y);
+    c.lineTo(pts[7].x, pts[7].y);
+    c.closePath();
+    c.fillStyle = color3;
+    c.fill();
+  }
+
+  function drawBars() {
+    t += 0.012;
+    c.clearRect(0, 0, W, H);
+
+    const bg = c.createLinearGradient(0, 0, 0, H);
+    bg.addColorStop(0, '#020a0a');
+    bg.addColorStop(1, '#000505');
+    c.fillStyle = bg;
+    c.fillRect(0, 0, W, H);
+
+    // grid floor
+    const scale = Math.min(W, H) * 0.055;
+    const ox = W / 2, oy = H * 0.72;
+    c.strokeStyle = 'rgba(0,150,100,0.08)';
+    c.lineWidth = 0.5;
+    for (let i = 0; i <= barCount; i++) {
+      const a = isoProject(-barCount/2 * 0.85 + i * 0.85, 0, -0.5);
+      const b = isoProject(-barCount/2 * 0.85 + i * 0.85, 0, 1.2);
+      c.beginPath();
+      c.moveTo(ox + a.sx * scale, oy + a.sy * scale);
+      c.lineTo(ox + b.sx * scale, oy + b.sy * scale);
+      c.stroke();
+    }
+
+    // bars ordered back to front
+    for (let i = barCount - 1; i >= 0; i--) {
+      const d = barData[i];
+      const h = (d.base + Math.sin(t * d.freq + d.phase) * 0.3) * 3.5;
+      const xpos = -barCount/2 * 0.85 + i * 0.85;
+      const hue = 160 + (h / 3.5) * 20;
+      const bright = 0.3 + (h / 4) * 0.5;
+      const a = 0.85;
+      const col1 = `hsla(${hue}, 80%, ${bright * 35}%, ${a})`;
+      const col2 = `hsla(${hue}, 80%, ${bright * 20}%, ${a})`;
+      const col3 = `hsla(${hue + 10}, 90%, ${bright * 60}%, ${a})`;
+      drawIsometricBar(xpos, -0.5, h, col1, col2, col3, a);
+    }
+
+    // value labels above tallest bars
+    barData.forEach((d, i) => {
+      const h = (d.base + Math.sin(t * d.freq + d.phase) * 0.3) * 3.5;
+      if (h > 2.8) {
+        const xpos = -barCount/2 * 0.85 + i * 0.85 + 0.35;
+        const p = isoProject(xpos, h + 0.3, 0);
+        const px = ox + p.sx * scale, py = oy + p.sy * scale;
+        c.font = '8px DM Mono, monospace';
+        c.fillStyle = 'rgba(0,220,150,0.7)';
+        c.textAlign = 'center';
+        c.fillText(Math.round(h * 28.5) + 'k', px, py);
+      }
+    });
+
+    // chart title
+    c.font = '9px DM Mono, monospace';
+    c.fillStyle = 'rgba(0,180,120,0.35)';
+    c.textAlign = 'left';
+    c.fillText('PIPELINE THROUGHPUT / REAL-TIME', 20, 24);
+
+    requestAnimationFrame(drawBars);
+  }
+  drawBars();
+})();
+
+
+// ═══════════════════════════════════════════════════
+// CARD 3 — 3D LINE CHART (streaming metrics globe)
+// glowing oscilloscope-style time-series with depth
+// ═══════════════════════════════════════════════════
+(function() {
+  const el = document.getElementById('metrics-canvas');
+  const container = document.getElementById('card-bg-3');
+  const c = el.getContext('2d');
+  let W, H, t = 0;
+  const history = 120;
+
+  function resize() {
+    W = el.width = container.offsetWidth;
+    H = el.height = container.offsetHeight;
+  }
+  resize();
+  new ResizeObserver(resize).observe(container);
+
+  // multiple metric streams with different depths (z)
+  const streams = [
+    { color: '#0066ff', glow: 'rgba(0,102,255,', z: 0, freq: 1.0, amp: 0.28, offset: 0, label: 'LATENCY' },
+    { color: '#00c8ff', glow: 'rgba(0,200,255,', z: 0.3, freq: 1.7, amp: 0.18, offset: 2.1, label: 'THROUGHPUT' },
+    { color: '#00ffaa', glow: 'rgba(0,255,170,', z: 0.6, freq: 0.8, amp: 0.22, offset: 4.4, label: 'ERROR RATE' },
+  ];
+
+  const dataBuffers = streams.map(() => Array(history).fill(0.5));
+
+  function drawMetrics() {
+    t += 0.02;
+    c.clearRect(0, 0, W, H);
+
+    const bg = c.createLinearGradient(0, 0, W, H);
+    bg.addColorStop(0, '#050510');
+    bg.addColorStop(1, '#020208');
+    c.fillStyle = bg;
+    c.fillRect(0, 0, W, H);
+
+    // grid lines
+    const gridCount = 5;
+    for (let i = 0; i <= gridCount; i++) {
+      const gy = H * 0.15 + (H * 0.7) * (i / gridCount);
+      c.beginPath();
+      c.moveTo(W * 0.06, gy);
+      c.lineTo(W * 0.95, gy);
+      c.strokeStyle = 'rgba(0,80,200,0.08)';
+      c.lineWidth = 0.5;
+      c.stroke();
+      c.font = '7px DM Mono, monospace';
+      c.fillStyle = 'rgba(0,102,255,0.25)';
+      c.textAlign = 'right';
+      c.fillText(Math.round((1 - i / gridCount) * 100) + '%', W * 0.055, gy + 3);
+    }
+
+    // vertical time markers
+    for (let i = 0; i < 6; i++) {
+      const gx = W * 0.06 + (W * 0.89) * (i / 5);
+      c.beginPath();
+      c.moveTo(gx, H * 0.15);
+      c.lineTo(gx, H * 0.85);
+      c.strokeStyle = 'rgba(0,80,200,0.06)';
+      c.stroke();
+    }
+
+    streams.forEach((s, si) => {
+      // update buffer
+      const val = 0.5 + Math.sin(t * s.freq + s.offset) * s.amp
+        + Math.sin(t * s.freq * 2.3 + s.offset * 1.4) * s.amp * 0.4
+        + (Math.random() - 0.5) * 0.03;
+      dataBuffers[si].push(Math.max(0.05, Math.min(0.95, val)));
+      dataBuffers[si].shift();
+
+      const chartX = (i) => W * 0.06 + (W * 0.89) * (i / (history - 1));
+      const chartY = (v) => H * 0.15 + (H * 0.7) * (1 - v);
+
+      // depth: perspective offset for 3D feel
+      const depthOffset = s.z * H * 0.04;
+
+      // glow trail (thick blurred pass)
+      c.beginPath();
+      dataBuffers[si].forEach((v, i) => {
+        const x = chartX(i);
+        const y = chartY(v) + depthOffset;
+        i === 0 ? c.moveTo(x, y) : c.lineTo(x, y);
+      });
+      c.strokeStyle = s.glow + '0.06)';
+      c.lineWidth = 12;
+      c.lineJoin = 'round';
+      c.stroke();
+
+      // mid glow
+      c.beginPath();
+      dataBuffers[si].forEach((v, i) => {
+        const x = chartX(i);
+        const y = chartY(v) + depthOffset;
+        i === 0 ? c.moveTo(x, y) : c.lineTo(x, y);
+      });
+      c.strokeStyle = s.glow + '0.2)';
+      c.lineWidth = 3;
+      c.stroke();
+
+      // crisp line
+      c.beginPath();
+      dataBuffers[si].forEach((v, i) => {
+        const x = chartX(i);
+        const y = chartY(v) + depthOffset;
+        i === 0 ? c.moveTo(x, y) : c.lineTo(x, y);
+      });
+      c.strokeStyle = s.color;
+      c.lineWidth = 1;
+      c.stroke();
+
+      // fill under curve
+      const lastX = chartX(history - 1);
+      const lastY = chartY(dataBuffers[si][history - 1]) + depthOffset;
+      c.lineTo(lastX, H * 0.85 + depthOffset);
+      c.lineTo(chartX(0), H * 0.85 + depthOffset);
+      c.closePath();
+      const fillGrad = c.createLinearGradient(0, H * 0.15, 0, H * 0.85);
+      fillGrad.addColorStop(0, s.glow + '0.08)');
+      fillGrad.addColorStop(1, s.glow + '0)');
+      c.fillStyle = fillGrad;
+      c.fill();
+
+      // current value dot
+      const curV = dataBuffers[si][history - 1];
+      const dotX = chartX(history - 1);
+      const dotY = chartY(curV) + depthOffset;
+      c.beginPath();
+      c.arc(dotX, dotY, 3, 0, Math.PI * 2);
+      c.fillStyle = s.color;
+      c.fill();
+
+      // pulse ring on dot
+      const pulseR = 3 + (Math.sin(t * 4 + si) + 1) * 5;
+      c.beginPath();
+      c.arc(dotX, dotY, pulseR, 0, Math.PI * 2);
+      c.strokeStyle = s.glow + '0.3)';
+      c.lineWidth = 1;
+      c.stroke();
+
+      // label
+      c.font = '8px DM Mono, monospace';
+      c.fillStyle = s.color;
+      c.textAlign = 'left';
+      c.fillText(s.label, dotX + 6, dotY + 3 + depthOffset);
+    });
+
+    // title
+    c.font = '9px DM Mono, monospace';
+    c.fillStyle = 'rgba(0,102,255,0.35)';
+    c.textAlign = 'left';
+    c.fillText('VOID METRICS / LIVE', 20, 24);
+
+    // live dot
+    c.beginPath();
+    c.arc(W - 24, 20, 3, 0, Math.PI * 2);
+    c.fillStyle = `rgba(0,255,100,${0.5 + Math.sin(t * 3) * 0.5})`;
+    c.fill();
+    c.font = '7px DM Mono, monospace';
+    c.fillStyle = 'rgba(0,255,100,0.5)';
+    c.textAlign = 'right';
+    c.fillText('LIVE', W - 30, 24);
+
+    requestAnimationFrame(drawMetrics);
+  }
+  drawMetrics();
+})();
+
 </script>
 </body>
 </html>
