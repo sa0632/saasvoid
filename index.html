@@ -46,7 +46,7 @@
   #cursor-ring {
     position: fixed;
     width: 40px; height: 40px;
-    border: 1px solid rgba(0, 102, 255, 0.4);
+    border: 1px solid rgba(0,102,255,0.4);
     border-radius: 50%;
     pointer-events: none;
     z-index: 9998;
@@ -377,7 +377,7 @@
     transition: transform 0.4s cubic-bezier(.25,.46,.45,.94);
     transform-origin: bottom;
   }
-  .feature-item:hover { border-color: #333; background: rgba(200,255,0,0.02); }
+  .feature-item:hover { border-color: #333; background: rgba(0,102,255,0.02); }
   .feature-item:hover::before { transform: scaleY(1); }
   .feature-num {
     font-family: var(--font-body);
@@ -473,7 +473,7 @@
   }
   .plan.featured {
     border-color: var(--accent);
-    background: rgba(200,255,0,0.03);
+    background: rgba(0,102,255,0.03);
   }
   .plan.featured::before {
     content: 'MOST POPULAR';
@@ -568,7 +568,7 @@
     position: absolute; top: -20px; right: -10px;
     font-family: var(--font-display);
     font-size: 120px;
-    color: rgba(200,255,0,0.04);
+    color: rgba(0,102,255,0.04);
     line-height: 1;
     pointer-events: none;
   }
@@ -602,7 +602,7 @@
     transform: translate(-50%, -50%);
     font-family: var(--font-display);
     font-size: 30vw;
-    color: rgba(200,255,0,0.03);
+    color: rgba(0,102,255,0.03);
     white-space: nowrap;
     pointer-events: none;
     letter-spacing: -0.02em;
@@ -993,7 +993,7 @@ class Particle {
   }
   draw() {
     ctx.globalAlpha = this.alpha;
-    ctx.fillStyle = '#c8ff00';
+    ctx.fillStyle = '#0066ff';
     ctx.beginPath();
     ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
     ctx.fill();
@@ -1010,7 +1010,7 @@ function drawConnections() {
       const d = Math.sqrt(dx * dx + dy * dy);
       if (d < 90) {
         ctx.globalAlpha = (1 - d / 90) * 0.07;
-        ctx.strokeStyle = '#c8ff00';
+        ctx.strokeStyle = '#0066ff';
         ctx.lineWidth = 0.5;
         ctx.beginPath();
         ctx.moveTo(particles[i].x, particles[i].y);
